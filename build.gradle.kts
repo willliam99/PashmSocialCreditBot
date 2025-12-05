@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.xeniac"
-version = "2.1.3"
+version = "2.1.4"
 
 kotlin {
     compilerOptions {
