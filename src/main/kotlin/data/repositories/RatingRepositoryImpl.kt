@@ -49,26 +49,22 @@ class RatingRepositoryImpl(
     override fun getGroupSocialCreditsList(
         groupId: Long,
         maxRows: Int
-    ): List<UserSocialCreditsInfo> {
-        return transaction {
-            UserSocialCreditsEntity
-                .find { UsersSocialCreditsTable.groupId eq groupId }
-                .orderBy(Pair(first = UsersSocialCreditsTable.socialCredits, second = SortOrder.DESC))
-                .orderBy(Pair(first = UsersSocialCreditsTable.firstName, second = SortOrder.ASC))
-                .limit(count = maxRows)
-                .map { it.toUserSocialCreditsInfo() }
-        }
+    ): List<UserSocialCreditsInfo> = transaction {
+        UserSocialCreditsEntity
+            .find { UsersSocialCreditsTable.groupId eq groupId }
+            .orderBy(Pair(first = UsersSocialCreditsTable.socialCredits, second = SortOrder.DESC))
+            .orderBy(Pair(first = UsersSocialCreditsTable.firstName, second = SortOrder.ASC))
+            .limit(count = maxRows)
+            .map { it.toUserSocialCreditsInfo() }
     }
 
     override fun getUserSocialCredits(
         groupId: Long,
         userId: Long
-    ): UserSocialCreditsInfo? {
-        return transaction {
-            UserSocialCreditsEntity
-                .find { (UsersSocialCreditsTable.groupId eq groupId) and (UsersSocialCreditsTable.userId eq userId) }
-                .singleOrNull()?.toUserSocialCreditsInfo()
-        }
+    ): UserSocialCreditsInfo? = transaction {
+        UserSocialCreditsEntity
+            .find { (UsersSocialCreditsTable.groupId eq groupId) and (UsersSocialCreditsTable.userId eq userId) }
+            .singleOrNull()?.toUserSocialCreditsInfo()
     }
 
     @OptIn(ExperimentalTime::class)
@@ -85,8 +81,6 @@ class RatingRepositoryImpl(
         dateFormat: DateTimeFormat<LocalDate>
     ): Result<UserSocialCreditsInfo> = try {
         transaction {
-            var ratingStatus: String? = null
-
             val currentTime = Clock.System.now()
             val currentTimeInMillis = currentTime.toEpochMilliseconds()
 
@@ -95,18 +89,20 @@ class RatingRepositoryImpl(
             ).date
             val formattedCurrentDate = dateFormat.format(value = currentDate)
 
-            UserRatingsHistoryEntity.find {
+            val currentRatingHistory = UserRatingsHistoryEntity.find {
                 (UserRatingsHistoryTable.groupId eq groupId) and
                         (UserRatingsHistoryTable.raterUserId eq messageSenderId) and
                         (UserRatingsHistoryTable.targetUserId eq userId)
-            }.singleOrNull()?.apply { // Previous rating history entity exists
+            }.singleOrNull()
+
+            if (currentRatingHistory != null) { // Previous rating history entity exists
                 val isCoolDownOver = when (messageSenderStatus) {
                     ChatMember.Status.Creator, ChatMember.Status.Administrator -> {
-                        currentTimeInMillis - this.modifiedAt > Constants.RATING_COOL_DOWN_IN_MILLIS
+                        currentTimeInMillis - currentRatingHistory.modifiedAt > Constants.RATING_COOL_DOWN_IN_MILLIS
                     }
                     ChatMember.Status.Member -> {
                         val modifiedAtDate = LocalDate.parse(
-                            input = this.modifiedAtDate,
+                            input = currentRatingHistory.modifiedAtDate,
                             format = dateFormat
                         )
                         val intervalDays = modifiedAtDate.until(
@@ -124,13 +120,11 @@ class RatingRepositoryImpl(
                     )
                 }
 
-                this.modifiedAt = currentTimeInMillis
-                this.modifiedAtDate = formattedCurrentDate
-            }.also { historyEntity ->
-                historyEntity?.let {
-                    println("User ratings history updated: ${it.toUserRatingsHistory()}")
-                }
-            } ?: UserRatingsHistoryEntity.new { // Previous rating history entity does not exist
+                currentRatingHistory.delete()
+            }
+
+            // Create new rating history entity
+            UserRatingsHistoryEntity.new {
                 this.groupId = groupId
                 this.raterUserId = messageSenderId
                 this.targetUserId = userId
@@ -141,35 +135,35 @@ class RatingRepositoryImpl(
                 println("User ratings history created: ${historyEntity.toUserRatingsHistory()}")
             }
 
-            val userRating = UserSocialCreditsEntity.find {
+            val currentUserRating = UserSocialCreditsEntity.find {
                 (UsersSocialCreditsTable.groupId eq groupId) and
                         (UsersSocialCreditsTable.userId eq userId)
-            }.singleOrNull()?.apply { // Previous user rating entity exists
-                this.groupTitle = groupTitle
-                this.username = username
-                this.firstName = firstName
-                this.socialCredits = (this.socialCredits + socialCreditsChange).coerceAtLeast(
-                    minimumValue = SocialClass.EXECUTED.credit
-                )
-                this.modifiedAt = currentTimeInMillis
-                ratingStatus = "updated"
-            } ?: UserSocialCreditsEntity.new {// Previous user rating entity does not exist
+            }.singleOrNull()
+
+            val updatedSocialCredits = when {
+                currentUserRating != null -> { // Previous user rating entity exists
+                    (currentUserRating.socialCredits + socialCreditsChange).coerceAtLeast(
+                        minimumValue = SocialClass.EXECUTED.credit
+                    )
+                }
+                else -> socialCreditsChange.coerceAtLeast(minimumValue = SocialClass.EXECUTED.credit)
+            }
+
+            currentUserRating?.delete()
+            val newUserRating = UserSocialCreditsEntity.new {// Previous user rating entity does not exist
                 this.groupId = groupId
                 this.groupTitle = groupTitle
                 this.userId = userId
                 this.username = username
                 this.firstName = firstName
-                this.socialCredits = socialCreditsChange.coerceAtLeast(
-                    minimumValue = SocialClass.EXECUTED.credit
-                )
+                this.socialCredits = updatedSocialCredits
                 this.createdAt = currentTimeInMillis
                 this.modifiedAt = currentTimeInMillis
-                ratingStatus = "created"
             }
 
             Result.success(
-                value = userRating.toUserSocialCreditsInfo().also {
-                    println("User social credits $ratingStatus: $it")
+                value = newUserRating.toUserSocialCreditsInfo().also {
+                    println("User social credits created: $it")
                 }
             )
         }
