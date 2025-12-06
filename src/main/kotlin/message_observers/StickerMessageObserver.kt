@@ -53,8 +53,7 @@ fun BehaviourContext.observeStickerMessages(
         }
 
         val botUser = telegramBot.getMe()
-        val isUserReplyingToSocialCreditBot = sticker.reply_to_message
-            ?.from?.username == botUser.username
+        val isUserReplyingToSocialCreditBot = sticker.reply_to_message?.from?.username == botUser.username
         if (isUserReplyingToSocialCreditBot) {
             when (sticker.chat) {
                 is GroupChatImpl -> sendCreditingSocialCreditBotProhibitionMessage(message = sticker)
