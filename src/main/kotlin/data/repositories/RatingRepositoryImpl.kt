@@ -9,9 +9,12 @@ import domain.model.SocialClass
 import domain.model.UserSocialCreditsInfo
 import domain.repositories.RatingRepository
 import domain.utils.Constants
+import kotlinx.datetime.*
+import kotlinx.datetime.format.DateTimeFormat
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.time.LocalDate
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 class RatingRepositoryImpl(
     private val dbUrl: String,
@@ -36,8 +39,10 @@ class RatingRepositoryImpl(
     override fun createDbSchemas() {
         transaction {
             addLogger(StdOutSqlLogger)
-            SchemaUtils.create(UsersSocialCreditsTable)
-            SchemaUtils.create(UserRatingsHistoryTable)
+            SchemaUtils.create(
+                UsersSocialCreditsTable,
+                UserRatingsHistoryTable
+            )
         }
     }
 
@@ -48,8 +53,8 @@ class RatingRepositoryImpl(
         return transaction {
             UserSocialCreditsEntity
                 .find { UsersSocialCreditsTable.groupId eq groupId }
-                .orderBy(Pair(UsersSocialCreditsTable.socialCredits, SortOrder.DESC))
-                .orderBy(Pair(UsersSocialCreditsTable.firstName, SortOrder.ASC))
+                .orderBy(Pair(first = UsersSocialCreditsTable.socialCredits, second = SortOrder.DESC))
+                .orderBy(Pair(first = UsersSocialCreditsTable.firstName, second = SortOrder.ASC))
                 .limit(count = maxRows)
                 .map { it.toUserSocialCreditsInfo() }
         }
@@ -66,6 +71,7 @@ class RatingRepositoryImpl(
         }
     }
 
+    @OptIn(ExperimentalTime::class)
     override fun updateUserSocialCredits(
         messageSenderId: Long,
         messageSenderStatus: ChatMember.Status,
@@ -74,64 +80,80 @@ class RatingRepositoryImpl(
         userId: Long,
         username: String,
         firstName: String,
-        socialCreditsChange: Long
+        socialCreditsChange: Long,
+        timeZone: TimeZone,
+        dateFormat: DateTimeFormat<LocalDate>
     ): Result<UserSocialCreditsInfo> = try {
         transaction {
             var ratingStatus: String? = null
-            val currentTimeInMillis = System.currentTimeMillis()
-            val currentDate = LocalDate.now()
-            val currentDateString = currentDate.toString() // yyyy-MM-dd
+
+            val currentTime = Clock.System.now()
+            val currentTimeInMillis = currentTime.toEpochMilliseconds()
+
+            val currentDate = currentTime.toLocalDateTime(
+                timeZone = timeZone
+            ).date
+            val formattedCurrentDate = dateFormat.format(value = currentDate)
 
             UserRatingsHistoryEntity.find {
                 (UserRatingsHistoryTable.groupId eq groupId) and
                         (UserRatingsHistoryTable.raterUserId eq messageSenderId) and
                         (UserRatingsHistoryTable.targetUserId eq userId)
-            }.singleOrNull()?.apply {
+            }.singleOrNull()?.apply { // Previous rating history entity exists
                 val isCoolDownOver = when (messageSenderStatus) {
                     ChatMember.Status.Creator, ChatMember.Status.Administrator -> {
                         currentTimeInMillis - this.modifiedAt > Constants.RATING_COOL_DOWN_IN_MILLIS
                     }
                     ChatMember.Status.Member -> {
-                        val modifiedAtDate = LocalDate.parse(this.modifiedAtDate)
-                        val until = modifiedAtDate.until(currentDate)
-                        val intervalDays = until.days
-
+                        val modifiedAtDate = LocalDate.parse(
+                            input = this.modifiedAtDate,
+                            format = dateFormat
+                        )
+                        val intervalDays = modifiedAtDate.until(
+                            other = currentDate,
+                            unit = DateTimeUnit.DAY
+                        )
                         intervalDays >= Constants.RATING_COOL_DOWN_FOR_MEMBERS_IN_DAYS
                     }
                     else -> false
                 }
 
-                if (isCoolDownOver) {
-                    this.modifiedAt = currentTimeInMillis
-                    this.modifiedAtDate = currentDateString
-                } else {
-                    return@transaction Result.failure(Throwable(Constants.THROWABLE_MESSAGE_COOL_DOWN))
+                if (!isCoolDownOver) {
+                    return@transaction Result.failure(
+                        exception = Throwable(message = Constants.THROWABLE_MESSAGE_COOL_DOWN)
+                    )
                 }
-            }.also {
-                it?.let { println("User ratings history updated: ${it.toUserRatingsHistory()}") }
-            } ?: UserRatingsHistoryEntity.new {
+
+                this.modifiedAt = currentTimeInMillis
+                this.modifiedAtDate = formattedCurrentDate
+            }.also { historyEntity ->
+                historyEntity?.let {
+                    println("User ratings history updated: ${it.toUserRatingsHistory()}")
+                }
+            } ?: UserRatingsHistoryEntity.new { // Previous rating history entity does not exist
                 this.groupId = groupId
                 this.raterUserId = messageSenderId
                 this.targetUserId = userId
                 this.createdAt = currentTimeInMillis
                 this.modifiedAt = currentTimeInMillis
-                this.modifiedAtDate = currentDateString
-            }.also {
-                println("User ratings history created: ${it.toUserRatingsHistory()}")
+                this.modifiedAtDate = formattedCurrentDate
+            }.also { historyEntity ->
+                println("User ratings history created: ${historyEntity.toUserRatingsHistory()}")
             }
 
-            val userRating = UserSocialCreditsEntity
-                .find { (UsersSocialCreditsTable.groupId eq groupId) and (UsersSocialCreditsTable.userId eq userId) }
-                .singleOrNull()?.apply {
-                    this.groupTitle = groupTitle
-                    this.username = username
-                    this.firstName = firstName
-                    this.socialCredits = (this.socialCredits + socialCreditsChange).coerceAtLeast(
-                        minimumValue = SocialClass.EXECUTED.credit
-                    )
-                    this.modifiedAt = currentTimeInMillis
-                    ratingStatus = "updated"
-                } ?: UserSocialCreditsEntity.new {
+            val userRating = UserSocialCreditsEntity.find {
+                (UsersSocialCreditsTable.groupId eq groupId) and
+                        (UsersSocialCreditsTable.userId eq userId)
+            }.singleOrNull()?.apply { // Previous user rating entity exists
+                this.groupTitle = groupTitle
+                this.username = username
+                this.firstName = firstName
+                this.socialCredits = (this.socialCredits + socialCreditsChange).coerceAtLeast(
+                    minimumValue = SocialClass.EXECUTED.credit
+                )
+                this.modifiedAt = currentTimeInMillis
+                ratingStatus = "updated"
+            } ?: UserSocialCreditsEntity.new {// Previous user rating entity does not exist
                 this.groupId = groupId
                 this.groupTitle = groupTitle
                 this.userId = userId
@@ -145,12 +167,14 @@ class RatingRepositoryImpl(
                 ratingStatus = "created"
             }
 
-            Result.success(userRating.toUserSocialCreditsInfo().also {
-                println("User social credits $ratingStatus: $it")
-            })
+            Result.success(
+                value = userRating.toUserSocialCreditsInfo().also {
+                    println("User social credits $ratingStatus: $it")
+                }
+            )
         }
     } catch (e: Exception) {
         e.printStackTrace()
-        Result.failure(Throwable("Update user social credits failed with an exception."))
+        Result.failure(exception = Throwable(message = "Update user social credits failed with an exception."))
     }
 }
