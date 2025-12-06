@@ -1,7 +1,9 @@
 FROM eclipse-temurin:23
 
-COPY build/libs/PashmSocialCreditBot-2.1.4.jar /app.jar
+RUN mkdir /opt/app
+
+COPY build/libs/PashmSocialCreditBot-2.1.5.jar /opt/app
 
 EXPOSE 10000
 
-CMD ["/usr/bin/java", "-jar", "/app.jar"]
+CMD ["java", "-jar", "/opt/app/PashmSocialCreditBot-2.1.5.jar"]
