@@ -20,8 +20,8 @@ kotlin {
 }
 
 dependencies {
-    // Kotlin JSON Serialization Library
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
 
     // Kotlin Telegram Bot Library
     implementation(libs.bundles.telegram)
