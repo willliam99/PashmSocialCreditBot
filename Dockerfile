@@ -1,4 +1,4 @@
-FROM openjdk:23
+FROM eclipse-temurin:23
 
 COPY build/libs/PashmSocialCreditBot-2.1.4.jar /app.jar
 
