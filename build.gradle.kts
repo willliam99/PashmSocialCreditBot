@@ -1,13 +1,13 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    kotlin("jvm") version "2.2.10"
+    kotlin("jvm") version "2.2.21"
     application
     alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.xeniac"
-version = "2.1.3"
+version = "2.1.4"
 
 kotlin {
     compilerOptions {
@@ -20,8 +20,8 @@ kotlin {
 }
 
 dependencies {
-    // Kotlin JSON Serialization Library
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
 
     // Kotlin Telegram Bot Library
     implementation(libs.bundles.telegram)

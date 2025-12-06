@@ -19,7 +19,7 @@ import utils.CommandHelper.showMyCredits
 import utils.CommandHelper.showOthersCredits
 
 @OptIn(RiskFeature::class)
-suspend fun BehaviourContext.observerCommands(
+fun BehaviourContext.observerCommands(
     ratingRepository: RatingRepository
 ) {
     onCommand(
