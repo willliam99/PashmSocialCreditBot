@@ -1,13 +1,13 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    kotlin("jvm") version "2.2.21"
+    kotlin("jvm") version "2.4.0"
     application
     alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.xeniac"
-version = "2.1.5"
+version = "2.1.6"
 
 kotlin {
     compilerOptions {
@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.bundles.telegram)
 
     // Ktor Client Library
+    implementation(platform(libs.ktor.bom))
     implementation(libs.bundles.ktor)
 
     // Exposed SQL library
