@@ -1,6 +1,6 @@
 package data.dto
 
-import org.jetbrains.exposed.dao.id.LongIdTable
+import org.jetbrains.exposed.v1.core.dao.id.LongIdTable
 
 object UsersSocialCreditsTable : LongIdTable(name = "users_social_credits") {
     val groupId = long(name = "groupId").index()

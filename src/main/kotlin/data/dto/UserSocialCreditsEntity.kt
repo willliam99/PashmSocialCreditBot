@@ -1,9 +1,9 @@
 package data.dto
 
 import domain.model.UserSocialCreditsInfo
-import org.jetbrains.exposed.dao.LongEntity
-import org.jetbrains.exposed.dao.LongEntityClass
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.LongEntity
+import org.jetbrains.exposed.v1.dao.LongEntityClass
 
 class UserSocialCreditsEntity(idEntity: EntityID<Long>) : LongEntity(id = idEntity) {
     var groupId by UsersSocialCreditsTable.groupId

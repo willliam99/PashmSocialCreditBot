@@ -1,9 +1,9 @@
 package data.dto
 
 import domain.model.UserRatingsHistory
-import org.jetbrains.exposed.dao.LongEntity
-import org.jetbrains.exposed.dao.LongEntityClass
-import org.jetbrains.exposed.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.LongEntity
+import org.jetbrains.exposed.v1.dao.LongEntityClass
 
 class UserRatingsHistoryEntity(idEntity: EntityID<Long>) : LongEntity(id = idEntity) {
     var groupId by UserRatingsHistoryTable.groupId
