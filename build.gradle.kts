@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.bundles.telegram)
 
     // Ktor Client Library
+    implementation(platform(libs.ktor.bom))
     implementation(libs.bundles.ktor)
 
     // Exposed SQL library
