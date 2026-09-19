@@ -1,13 +1,13 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    kotlin("jvm") version "2.4.0"
+    kotlin("jvm") version "2.4.20"
     application
     alias(libs.plugins.kotlin.serialization)
 }
 
 group = "com.xeniac"
-version = "2.1.6"
+version = "2.1.7"
 
 kotlin {
     compilerOptions {
