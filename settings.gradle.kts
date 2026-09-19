@@ -16,8 +16,12 @@ dependencyResolutionManagement {
 }
 
 plugins {
-    // Toolchains resolver using the Foojay Disco API for resolving Java runtimes. Automatically configures toolchain management.
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.10.0"
+    /*
+     * Foojay Toolchains Resolver Convention plugin.
+     * Automatically detects, downloads, and configures the required JDKs for the project using the Foojay Disco API,
+     * enabling Gradle's Java toolchain management.
+     */
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
 rootProject.name = "PashmSocialCreditBot"
